@@ -1,4 +1,4 @@
-# Fork-only: builds the desktop apps from my-build and publishes them as a
+# Fork-only: builds the desktop and Android apps from my-build and publishes them as a
 # GitHub Release on this fork. The Linux AppImage updates itself from these
 # releases; the unsigned macOS app needs a manual reinstall.
 name: Build apps
@@ -83,8 +83,55 @@ jobs:
           path: publish/*
           if-no-files-found: error
 
+  # Installs beside the official app (package com.t3tools.t3code.preview), signed
+  # with the Expo debug key so every build can update the previous one in place.
+  android:
+    if: github.repository == 'samer2373/t3code'
+    name: Build android
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      APP_VARIANT: preview
+      EXPO_NO_GIT_STATUS: "1"
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
+      - uses: ./.github/actions/setup-ci-deps
+        with:
+          install-args: --filter=@t3tools/mobile...
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Public relay config
+        run: |
+          get() { sed -n "s|^$1=||p" .env.example; }
+          {
+            echo "T3CODE_RELAY_URL=$(get T3CODE_RELAY_URL)"
+            echo "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=$(get T3CODE_CLERK_PUBLISHABLE_KEY)"
+            echo "EXPO_PUBLIC_CLERK_JWT_TEMPLATE=$(get T3CODE_CLERK_JWT_TEMPLATE)"
+          } >> "$GITHUB_ENV"
+      - name: Prebuild
+        working-directory: apps/mobile
+        run: vp exec expo prebuild --clean --platform android
+      - name: Gradle release APK
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleRelease --no-daemon
+      - run: mkdir publish && cp apps/mobile/android/app/build/outputs/apk/release/*.apk "publish/T3-Code-Preview-android-fork.${{ github.run_number }}.apk"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android
+          path: publish/*
+          if-no-files-found: error
+
   release:
-    needs: build
+    needs: [build, android]
+    if: ${{ !cancelled() && (needs.build.result == 'success' || needs.android.result == 'success') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v8
