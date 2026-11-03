@@ -152,7 +152,8 @@ jobs:
         working-directory: apps/mobile/android
         run: ./gradlew assembleRelease --no-daemon
       - name: Check signer
-        run: keytool -printcert -jarfile apps/mobile/android/app/build/outputs/apk/release/*.apk | grep -m1 "Owner: CN=samer2373 personal build"
+        run: |
+          keytool -printcert -jarfile apps/mobile/android/app/build/outputs/apk/release/*.apk | grep -m1 "CN=samer2373 personal build"
       - run: mkdir publish && cp apps/mobile/android/app/build/outputs/apk/release/*.apk "publish/T3-Code-Preview-android-fork.${{ github.run_number }}.apk"
       - uses: actions/upload-artifact@v7
         with:
