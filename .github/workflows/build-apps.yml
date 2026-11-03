@@ -84,7 +84,7 @@ jobs:
           if-no-files-found: error
 
   # Installs beside the official app (package com.t3tools.t3code.preview), signed
-  # with the Expo debug key so every build can update the previous one in place.
+  # with a private keystore (secrets) so every build updates the previous one in place.
   android:
     if: github.repository == 'samer2373/t3code'
     name: Build android
@@ -119,9 +119,40 @@ jobs:
       - name: Prebuild
         working-directory: apps/mobile
         run: vp exec expo prebuild --clean --platform android
+      - name: Sign with the private keystore
+        working-directory: apps/mobile/android
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_B64" && test -n "$ANDROID_KEYSTORE_PASSWORD"
+          echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          p = "app/build.gradle"
+          s = open(p).read()
+          a = s.index("signingConfigs {") + len("signingConfigs {")
+          s = s[:a] + """
+              release {
+                  storeFile file(System.getenv("ANDROID_KEYSTORE_FILE"))
+                  storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                  keyAlias "mybuild"
+                  keyPassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+              }""" + s[a:]
+          b = s.index("buildTypes {")
+          r = s.index("release {", b)
+          c = s.index("signingConfigs.debug", r)
+          s = s[:c] + "signingConfigs.release" + s[c + len("signingConfigs.debug"):]
+          open(p, "w").write(s)
+          PY
+          grep -n "signingConfigs.release" app/build.gradle
       - name: Gradle release APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         working-directory: apps/mobile/android
         run: ./gradlew assembleRelease --no-daemon
+      - name: Check signer
+        run: keytool -printcert -jarfile apps/mobile/android/app/build/outputs/apk/release/*.apk | grep -m1 "Owner: CN=samer2373 personal build"
       - run: mkdir publish && cp apps/mobile/android/app/build/outputs/apk/release/*.apk "publish/T3-Code-Preview-android-fork.${{ github.run_number }}.apk"
       - uses: actions/upload-artifact@v7
         with:
