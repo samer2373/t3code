@@ -108,6 +108,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
       - name: Public relay config
         run: |
           get() { sed -n "s|^$1=||p" .env.example; }
@@ -153,7 +154,8 @@ jobs:
         run: ./gradlew assembleRelease --no-daemon
       - name: Check signer
         run: |
-          keytool -printcert -jarfile apps/mobile/android/app/build/outputs/apk/release/*.apk | grep -m1 "CN=samer2373 personal build"
+          apksigner="$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
+          "$apksigner" verify --print-certs apps/mobile/android/app/build/outputs/apk/release/*.apk | tee /dev/stderr | grep -q "CN=samer2373 personal build"
       - run: mkdir publish && cp apps/mobile/android/app/build/outputs/apk/release/*.apk "publish/T3-Code-Preview-android-fork.${{ github.run_number }}.apk"
       - uses: actions/upload-artifact@v7
         with:
