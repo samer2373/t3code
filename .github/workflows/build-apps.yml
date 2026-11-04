@@ -100,7 +100,7 @@ jobs:
   # Installs beside the official app (package com.t3tools.t3code.preview), signed
   # with a private keystore (secrets) so every build updates the previous one in place.
   android:
-    if: github.repository == 'samer2373/t3code' && inputs.android != false
+    if: github.repository == 'samer2373/t3code' && (github.event_name != 'workflow_dispatch' || inputs.android)
     name: Build android
     runs-on: ubuntu-24.04
     timeout-minutes: 90
