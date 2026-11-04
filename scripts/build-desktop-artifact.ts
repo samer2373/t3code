@@ -3976,7 +3976,8 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     delete buildEnv.CSC_LINK;
     delete buildEnv.CSC_KEY_PASSWORD;
   }
-  if (!options.signed) {
+  // Fork: plain Developer ID signing and notarization, without upstream's passkey profile.
+  if (!options.signed && !buildEnv.FORK_MACOS_DEVID) {
     buildEnv.CSC_IDENTITY_AUTO_DISCOVERY = "false";
     delete buildEnv.CSC_LINK;
     delete buildEnv.CSC_KEY_PASSWORD;
