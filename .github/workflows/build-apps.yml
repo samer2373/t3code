@@ -20,6 +20,7 @@ concurrency:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   build:
@@ -193,3 +194,16 @@ jobs:
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "My build #${{ github.run_number }}" \
             --notes "Built from $GITHUB_SHA (my-build): latest upstream stable release plus my features."
+      # A comment by the bot that mentions me is what makes GitHub Mobile push.
+      - name: Notify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          n=$(gh issue list --label build-notify --state all --json number --jq '.[0].number')
+          if [ -z "$n" ]; then
+            gh label create build-notify --force >/dev/null
+            n=$(gh issue create --label build-notify --title "Build notifications" \
+              --body "New builds are announced here." | grep -o '[0-9]*$')
+          fi
+          gh issue comment "$n" --body "@samer2373 My build #${{ github.run_number }} is ready: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/my-build-${{ github.run_number }}"
